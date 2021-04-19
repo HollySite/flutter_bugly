@@ -21,6 +21,8 @@
           if(!isChannelEmpty){
             config.channel = channel;
           }
+          NSNumber *isDebug = call.arguments[@"isDebug"];
+          config.debugMode = isDebug.boolValue;
           [Bugly startWithAppId:appId config:config];
           NSLog(@"Bugly appId: %@", appId);
 

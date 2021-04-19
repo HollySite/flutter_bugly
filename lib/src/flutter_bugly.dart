@@ -22,6 +22,7 @@ class FlutterBugly {
     String androidAppId,
     String iOSAppId,
     String channel, //自定义渠道标识
+    bool isDebug = kDebugMode,
     bool autoCheckUpgrade = true,
     bool autoInit = true,
     bool autoDownloadOnWifi = false,
@@ -41,6 +42,7 @@ class FlutterBugly {
     Map<String, Object> map = {
       "appId": Platform.isAndroid ? androidAppId : iOSAppId,
       "channel": channel,
+      "isDebug": isDebug,
       "autoCheckUpgrade": autoCheckUpgrade,
       "autoDownloadOnWifi": autoDownloadOnWifi,
       "enableHotfix": enableHotfix,

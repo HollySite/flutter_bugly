@@ -1,7 +1,7 @@
 package com.crazecoder.flutterbugly;
 
-import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.content.Context;
 import android.text.TextUtils;
 
 import androidx.annotation.NonNull;
@@ -18,7 +18,6 @@ import com.tencent.bugly.crashreport.CrashReport;
 import java.util.HashMap;
 import java.util.Map;
 
-import io.flutter.BuildConfig;
 import io.flutter.embedding.engine.plugins.FlutterPlugin;
 import io.flutter.embedding.engine.plugins.activity.ActivityAware;
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding;
@@ -26,29 +25,58 @@ import io.flutter.plugin.common.MethodCall;
 import io.flutter.plugin.common.MethodChannel;
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler;
 import io.flutter.plugin.common.MethodChannel.Result;
-import io.flutter.plugin.common.PluginRegistry.Registrar;
 
 /**
  * FlutterBuglyPlugin
  */
-public class FlutterBuglyPlugin implements FlutterPlugin, MethodCallHandler, ActivityAware {
+public class FlutterBuglyPlugin implements FlutterPlugin, ActivityAware, MethodCallHandler {
+    private MethodChannel channel;
+    private Context applicationContext;
+    private Activity activity;
     private Result result;
     private boolean isResultSubmitted = false;
-    private static MethodChannel channel;
-    @SuppressLint("StaticFieldLeak")
-    private static Activity activity;
-    private FlutterPluginBinding flutterPluginBinding;
+    
+    // --- FlutterPlugin
 
+    @Override
+    public void onAttachedToEngine(@NonNull FlutterPluginBinding binding) {
+        channel = new MethodChannel(binding.getBinaryMessenger(), "crazecoder/flutter_bugly");
+        channel.setMethodCallHandler(this);
 
-    /**
-     * Plugin registration.
-     */
-    public static void registerWith(Registrar registrar) {
-        channel = new MethodChannel(registrar.messenger(), "crazecoder/flutter_bugly");
-        FlutterBuglyPlugin plugin = new FlutterBuglyPlugin();
-        channel.setMethodCallHandler(plugin);
-        activity = registrar.activity();
+        applicationContext = binding.getApplicationContext();
     }
+
+    @Override
+    public void onDetachedFromEngine(@NonNull FlutterPluginBinding binding) {
+        channel.setMethodCallHandler(null);
+        channel = null;
+        
+        applicationContext = null;
+    }
+    
+    // --- ActivityAware
+
+    @Override
+    public void onAttachedToActivity(@NonNull ActivityPluginBinding binding) {
+        activity = binding.getActivity();
+    }
+
+    @Override
+    public void onDetachedFromActivityForConfigChanges() {
+        onDetachedFromActivity();
+    }
+
+    @Override
+    public void onReattachedToActivityForConfigChanges(@NonNull ActivityPluginBinding binding) {
+        onAttachedToActivity(binding);
+    }
+
+    @Override
+    public void onDetachedFromActivity() {
+        activity = null;
+    }
+    
+    // --- MethodCallHandler
 
     @Override
     public void onMethodCall(final MethodCall call, @NonNull final Result result) {
@@ -97,14 +125,17 @@ public class FlutterBuglyPlugin implements FlutterPlugin, MethodCallHandler, Act
                         }
                     } : null;
                 }
-                Beta.canShowUpgradeActs.add(activity.getClass());
+                if (activity != null) {
+                    Beta.canShowUpgradeActs.add(activity.getClass());
+                }
 
                 String appId = call.argument("appId").toString();
-                Bugly.init(activity.getApplicationContext(), appId, BuildConfig.DEBUG);
+                boolean isDebug = call.argument("isDebug");
+                Bugly.init(applicationContext, appId, isDebug);
                 if (call.hasArgument("channel")) {
                     String channel = call.argument("channel");
                     if (!TextUtils.isEmpty(channel))
-                        Bugly.setAppChannel(activity.getApplicationContext(), channel);
+                        Bugly.setAppChannel(applicationContext, channel);
                 }
                 result(getResultBean(true, appId, "Bugly 初始化成功"));
             } else {
@@ -113,21 +144,21 @@ public class FlutterBuglyPlugin implements FlutterPlugin, MethodCallHandler, Act
         } else if (call.method.equals("setUserId")) {
             if (call.hasArgument("userId")) {
                 String userId = call.argument("userId");
-                Bugly.setUserId(activity.getApplicationContext(), userId);
+                Bugly.setUserId(applicationContext, userId);
             }
             result(null);
         } else if (call.method.equals("setUserTag")) {
             if (call.hasArgument("userTag")) {
                 Integer userTag = call.argument("userTag");
                 if (userTag != null)
-                    Bugly.setUserTag(activity.getApplicationContext(), userTag);
+                    Bugly.setUserTag(applicationContext, userTag);
             }
             result(null);
         } else if (call.method.equals("putUserData")) {
             if (call.hasArgument("key") && call.hasArgument("value")) {
                 String userDataKey = call.argument("key");
                 String userDataValue = call.argument("value");
-                Bugly.putUserData(activity.getApplicationContext(), userDataKey, userDataValue);
+                Bugly.putUserData(applicationContext, userDataKey, userDataValue);
             }
             result(null);
         } else if (call.method.equals("checkUpgrade")) {
@@ -164,7 +195,6 @@ public class FlutterBuglyPlugin implements FlutterPlugin, MethodCallHandler, Act
         }
         if (TextUtils.isEmpty(detail)) return;
         CrashReport.postException(8, "Flutter Exception", message, detail, null);
-
     }
 
     private void result(Object object) {
@@ -184,37 +214,5 @@ public class FlutterBuglyPlugin implements FlutterPlugin, MethodCallHandler, Act
         bean.setAppId(appId);
         bean.setMessage(msg);
         return bean;
-    }
-
-    @Override
-    public void onAttachedToEngine(@NonNull FlutterPluginBinding binding) {
-        this.flutterPluginBinding = binding;
-    }
-
-    @Override
-    public void onDetachedFromEngine(@NonNull FlutterPluginBinding binding) {
-        channel.setMethodCallHandler(null);
-    }
-
-    @Override
-    public void onAttachedToActivity(@NonNull ActivityPluginBinding binding) {
-        activity = binding.getActivity();
-        channel = new MethodChannel(flutterPluginBinding.getFlutterEngine().getDartExecutor(), "crazecoder/flutter_bugly");
-        channel.setMethodCallHandler(this);
-    }
-
-    @Override
-    public void onDetachedFromActivityForConfigChanges() {
-
-    }
-
-    @Override
-    public void onReattachedToActivityForConfigChanges(@NonNull ActivityPluginBinding binding) {
-
-    }
-
-    @Override
-    public void onDetachedFromActivity() {
-        flutterPluginBinding = null;
     }
 }
